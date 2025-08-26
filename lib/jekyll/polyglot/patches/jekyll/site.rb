@@ -200,7 +200,7 @@ module Jekyll
     def process_documents(docs)
       # return if @active_lang == @default_lang
 
-      url = config.fetch('url', false)
+      url = config.fetch('url', "")
       rel_regex = relative_url_regex(false)
       abs_regex = absolute_url_regex(url, false)
       non_rel_regex = relative_url_regex(true)
@@ -208,7 +208,7 @@ module Jekyll
       docs.each do |doc|
         unless @active_lang == @default_lang then relativize_urls(doc, rel_regex) end
         correct_nonrelativized_urls(doc, non_rel_regex)
-        if url
+        unless url.empty?
           unless @active_lang == @default_lang then relativize_absolute_urls(doc, abs_regex, url) end
           correct_nonrelativized_absolute_urls(doc, non_abs_regex, url)
         end
