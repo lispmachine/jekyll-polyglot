@@ -8,7 +8,6 @@ module Jekyll
 
     def prepare
       @file_langs = {}
-      fetch_languages
       @parallel_localization = config.fetch('parallel_localization', true)
       @lang_from_path = config.fetch('lang_from_path', false)
       @exclude_from_localization = config.fetch('exclude_from_localization', []).map do |e|
@@ -18,12 +17,69 @@ module Jekyll
           e
         end
       end
+      @default_locale_in_subfolder = config.fetch('default_locale_in_subfolder', false)
+      fetch_languages
+    end
+
+    def localization_directories
+      if @default_locale_in_subfolder
+        (@languages + [@default_lang]).uniq
+      else
+        @languages - [@default_lang]
+      end
+    end
+
+    def lang_prefix
+      lang_prefix(@active_lang)
+    end
+
+    def lang_prefix(lang)
+      if lang == @default_lang && !@default_locale_in_subfolder
+        ''
+      else
+        "/#{lang}"
+      end
+    end
+
+    # Public: Prefix a given path with the destination directory.
+    #
+    # paths - (optional) path elements to a file or directory within the
+    #         destination directory
+    #
+    # Returns a path which is prefixed with the destination directory.
+    #
+    # Even though the destination is substituted during processing of each language,
+    # we must also cover the case of default_loale_in_subfolder and files excluded
+    # from localization.
+    #
+    # In this case in_dest_dir will be called with localized destination directory and
+    # path to static file e.g. site.in_dest_dir("$SOURCE_DIR/_site/en", "/assets/image.png")
+    # which should proceed to "$SOURCE_DIR/_site/assets/image.png"
+    # 
+    def in_dest_dir(*paths)
+      if !paths.empty? && should_localize?(paths.last)
+        paths.insert(paths.length-1, lang_prefix(@active_lang))
+      end
+      paths.reduce(dest) do |base, path|
+        Jekyll.sanitized_path(base, path)
+      end
+    end
+
+    def should_localize?(path)
+      return false if @exclude_from_localization.nil?
+      path = path.delete_prefix('/')
+      !@exclude_from_localization.any? do |exclude_prefix|
+        path.start_with?(exclude_prefix)
+      end
     end
 
     def fetch_languages
       @default_lang = config.fetch('default_lang', 'en')
       @languages = config.fetch('languages', ['en']).uniq
-      @keep_files += (@languages - [@default_lang])
+      @keep_files += localization_directories
+      if @default_locale_in_subfolder
+        @keep_files += @exclude_from_localization
+      end
       @active_lang = @default_lang
       @lang_vars = config.fetch('lang_vars', [])
     end
@@ -84,27 +140,18 @@ module Jekyll
       lang_vars.each do |v|
         config[v] = @active_lang
       end
-      if @active_lang == @default_lang
-      then process_default_language
-      else
-        process_active_language
-      end
-    end
-
-    def process_default_language
-      old_include = @include
-      process_orig
-      @include = old_include
-    end
-
-    def process_active_language
-      old_dest = @dest
-      old_exclude = @exclude
       @file_langs = {}
-      @dest = "#{@dest}/#{@active_lang}"
-      @exclude += @exclude_from_localization
+      old_include = @include
+      old_exclude = @exclude
+      if @active_lang == @default_lang
+        @include = @include.union(@exclude_from_localization)
+      else
+        @exclude = @exclude.union(@exclude_from_localization)
+      end
+
       process_orig
-      @dest = old_dest
+
+      @include = old_include
       @exclude = old_exclude
     end
 
@@ -172,7 +219,6 @@ module Jekyll
       pageId = doc.data['page_id']
       if !pageId.nil? && !pageId.empty?
         lang = doc.data['lang'] || derive_lang_from_path(doc) || @default_lang
-        langPrefix = lang === @default_lang ? '' : "#{lang}/"
         redirectDocs = docs.select do |dd|
           doclang = dd.data['lang'] || derive_lang_from_path(dd) || @default_lang
           dd.data['page_id'] == pageId && doclang != lang && dd.data['permalink'] != doc.data['permalink']
@@ -206,10 +252,10 @@ module Jekyll
       non_rel_regex = relative_url_regex(true)
       non_abs_regex = absolute_url_regex(url, true)
       docs.each do |doc|
-        unless @active_lang == @default_lang then relativize_urls(doc, rel_regex) end
+        unless lang_prefix(@active_lang).empty? then relativize_urls(doc, rel_regex) end
         correct_nonrelativized_urls(doc, non_rel_regex)
         unless url.empty?
-          unless @active_lang == @default_lang then relativize_absolute_urls(doc, abs_regex, url) end
+          unless lang_prefix(@active_lang).empty? then relativize_absolute_urls(doc, abs_regex, url) end
           correct_nonrelativized_absolute_urls(doc, non_abs_regex, url)
         end
       end
@@ -234,7 +280,7 @@ module Jekyll
     def relative_url_regex(disabled = false)
       regex = ''
       unless disabled
-        @exclude.each do |x|
+        @exclude.union(@exclude_from_localization).each do |x|
           regex += "(?!#{x})"
         end
         @languages.each do |x|
@@ -252,7 +298,7 @@ module Jekyll
     def absolute_url_regex(url, disabled = false)
       regex = ''
       unless disabled
-        @exclude.each do |x|
+        @exclude.union(@exclude_from_localization).each do |x|
           regex += "(?!#{x})"
         end
         @languages.each do |x|

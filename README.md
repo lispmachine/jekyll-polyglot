@@ -42,6 +42,9 @@ The optional `lang_from_path: true` option enables getting page
 language from the first or second path segment, e.g `de/first-one.md`, or
 `_posts/zh_Hans_HK/use-second-segment.md` , if the lang frontmatter isn't defined.
 
+With `default_locale_in_subfolder: true` the files for default language
+are generated in subdirectory (in the same way as other languages).
+
 ## How To Use It
 When adding new posts and pages, add to the YAML front matter:
 ```
