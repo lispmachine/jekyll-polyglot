@@ -18,12 +18,29 @@ module Jekyll
           e
         end
       end
+      @default_locale_in_subfolder = config.fetch('default_locale_in_subfolder', false)
+    end
+
+    def localization_directories
+      if @default_locale_in_subfolder
+        (@languages + [@default_lang]).uniq
+      else
+        @languages - [@default_lang]
+      end
+    end
+
+    def lang_prefix(lang)
+      if lang == @default_lang && !@default_locale_in_subfolder
+        ''
+      else
+        "/#{lang}"
+      end
     end
 
     def fetch_languages
       @default_lang = config.fetch('default_lang', 'en')
       @languages = config.fetch('languages', ['en']).uniq
-      @keep_files += (@languages - [@default_lang])
+      @keep_files += localization_directories
       @active_lang = @default_lang
       @lang_vars = config.fetch('lang_vars', [])
     end
@@ -92,6 +109,10 @@ module Jekyll
     end
 
     def process_default_language
+      if @default_locale_in_subfolder
+        process_active_language
+        return
+      end
       old_include = @include
       process_orig
       @include = old_include
@@ -206,10 +227,10 @@ module Jekyll
       non_rel_regex = relative_url_regex(true)
       non_abs_regex = absolute_url_regex(url, true)
       docs.each do |doc|
-        unless @active_lang == @default_lang then relativize_urls(doc, rel_regex) end
+        unless lang_prefix(@active_lang).empty? then relativize_urls(doc, rel_regex) end
         correct_nonrelativized_urls(doc, non_rel_regex)
         unless url.empty?
-          unless @active_lang == @default_lang then relativize_absolute_urls(doc, abs_regex, url) end
+          unless lang_prefix(@active_lang).empty? then relativize_absolute_urls(doc, abs_regex, url) end
           correct_nonrelativized_absolute_urls(doc, non_abs_regex, url)
         end
       end
