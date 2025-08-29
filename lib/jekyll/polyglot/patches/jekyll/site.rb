@@ -3,7 +3,7 @@ require 'etc'
 include Process
 module Jekyll
   class Site
-    attr_reader :default_lang, :languages, :exclude_from_localization, :lang_vars, :lang_from_path
+    attr_reader :default_lang, :languages, :exclude_from_localization, :lang_vars, :lang_from_path, :orig_dest
     attr_accessor :file_langs, :active_lang
 
     def prepare
@@ -41,6 +41,9 @@ module Jekyll
       @default_lang = config.fetch('default_lang', 'en')
       @languages = config.fetch('languages', ['en']).uniq
       @keep_files += localization_directories
+      if @default_locale_in_subfolder
+        @keep_files += @exclude_from_localization
+      end
       @active_lang = @default_lang
       @lang_vars = config.fetch('lang_vars', [])
     end
@@ -109,13 +112,16 @@ module Jekyll
     end
 
     def process_default_language
+      @orig_dest = @dest
       if @default_locale_in_subfolder
-        process_active_language
-        return
+        @dest = "#{@dest}/#{@active_lang}"
+        process_orig
+        @dest = @orig_dest
+      else
+        old_include = @include
+        process_orig
+        @include = old_include
       end
-      old_include = @include
-      process_orig
-      @include = old_include
     end
 
     def process_active_language
