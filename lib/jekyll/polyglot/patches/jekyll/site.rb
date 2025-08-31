@@ -8,7 +8,6 @@ module Jekyll
 
     def prepare
       @file_langs = {}
-      fetch_languages
       @parallel_localization = config.fetch('parallel_localization', true)
       @lang_from_path = config.fetch('lang_from_path', false)
       @exclude_from_localization = config.fetch('exclude_from_localization', []).map do |e|
@@ -19,6 +18,7 @@ module Jekyll
         end
       end
       @default_locale_in_subfolder = config.fetch('default_locale_in_subfolder', false)
+      fetch_languages
     end
 
     def localization_directories
@@ -27,6 +27,10 @@ module Jekyll
       else
         @languages - [@default_lang]
       end
+    end
+
+    def lang_prefix
+      lang_prefix(@active_lang)
     end
 
     def lang_prefix(lang)
@@ -140,9 +144,9 @@ module Jekyll
       old_include = @include
       old_exclude = @exclude
       if @active_lang == @default_lang
-        @include += @exclude_from_localization
+        @include = @include.union(@exclude_from_localization)
       else
-        @exclude += @exclude_from_localization
+        @exclude = @exclude.union(@exclude_from_localization)
       end
 
       process_orig
@@ -215,7 +219,6 @@ module Jekyll
       pageId = doc.data['page_id']
       if !pageId.nil? && !pageId.empty?
         lang = doc.data['lang'] || derive_lang_from_path(doc) || @default_lang
-        langPrefix = lang === @default_lang ? '' : "#{lang}/"
         redirectDocs = docs.select do |dd|
           doclang = dd.data['lang'] || derive_lang_from_path(dd) || @default_lang
           dd.data['page_id'] == pageId && doclang != lang && dd.data['permalink'] != doc.data['permalink']
@@ -277,7 +280,7 @@ module Jekyll
     def relative_url_regex(disabled = false)
       regex = ''
       unless disabled
-        @exclude.each do |x|
+        @exclude.union(@exclude_from_localization).each do |x|
           regex += "(?!#{x})"
         end
         @languages.each do |x|
@@ -295,7 +298,7 @@ module Jekyll
     def absolute_url_regex(url, disabled = false)
       regex = ''
       unless disabled
-        @exclude.each do |x|
+        @exclude.union(@exclude_from_localization).each do |x|
           regex += "(?!#{x})"
         end
         @languages.each do |x|
