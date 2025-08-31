@@ -3,7 +3,7 @@ require 'etc'
 include Process
 module Jekyll
   class Site
-    attr_reader :default_lang, :languages, :exclude_from_localization, :lang_vars, :lang_from_path, :lang_neutral_dest
+    attr_reader :default_lang, :languages, :exclude_from_localization, :lang_vars, :lang_from_path
     attr_accessor :file_langs, :active_lang
 
     def prepare
@@ -53,39 +53,19 @@ module Jekyll
     # which should proceed to "$SOURCE_DIR/_site/assets/image.png"
     # 
     def in_dest_dir(*paths)
-      if lang_neutral_dest.nil?
-        base_dest = dest
-      elsif should_localize? paths.last
-        base_dest = lang_neutral_dest + lang_prefix(@active_lang)
-      else
-        base_dest = lang_neutral_dest
+      if !paths.empty? && should_localize?(paths.last)
+        paths.insert(paths.length-1, lang_prefix(@active_lang))
       end
-      paths.reduce(base_dest) do |base, path|
+      paths.reduce(dest) do |base, path|
         Jekyll.sanitized_path(base, path)
       end
     end
 
     def should_localize?(path)
+      return false if @exclude_from_localization.nil?
       path = path.delete_prefix('/')
       !@exclude_from_localization.any? do |exclude_prefix|
         path.start_with?(exclude_prefix)
-      end
-    end
-
-    def destination_for(path)
-      path = path.delete_prefix('/')
-      exclude_from_localization = @exclude_from_localization.any? do |exclude_prefix|
-        path.start_with?(exclude_prefix)
-      end
-      if exclude_from_localization
-        # language neutral files need to be generated only once for the default language
-        if @active_lang == @default_lang
-          @lang_neutral_dest
-        else
-          nil
-        end
-      else
-        @lang_neutral_dest + lang_prefix(@active_lang)
       end
     end
 
@@ -157,10 +137,8 @@ module Jekyll
         config[v] = @active_lang
       end
       @file_langs = {}
-      @lang_neutral_dest = old_dest = @dest
       old_include = @include
       old_exclude = @exclude
-      @dest += lang_prefix @active_lang
       if @active_lang == @default_lang
         @include += @exclude_from_localization
       else
@@ -169,33 +147,7 @@ module Jekyll
 
       process_orig
 
-      @dest = old_dest
       @include = old_include
-      @exclude = old_exclude
-    end
-
-    # todo: remove
-    def process_default_language
-      if @default_locale_in_subfolder
-        @dest = "#{@dest}/#{@active_lang}"
-        process_orig
-        @dest = old_dest
-      else
-        old_include = @include
-        process_orig
-        @include = old_include
-      end
-    end
-
-    # todo: remove
-    def process_active_language
-      old_dest = @dest
-      old_exclude = @exclude
-      @file_langs = {}
-      @dest += lang_prefix @active_lang
-      @exclude += @exclude_from_localization
-      process_orig
-      @dest = old_dest
       @exclude = old_exclude
     end
 
