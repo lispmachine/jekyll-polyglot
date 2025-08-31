@@ -3,7 +3,7 @@ require 'etc'
 include Process
 module Jekyll
   class Site
-    attr_reader :default_lang, :languages, :exclude_from_localization, :lang_vars, :lang_from_path, :orig_dest
+    attr_reader :default_lang, :languages, :exclude_from_localization, :lang_vars, :lang_from_path, :lang_neutral_dest
     attr_accessor :file_langs, :active_lang
 
     def prepare
@@ -34,6 +34,58 @@ module Jekyll
         ''
       else
         "/#{lang}"
+      end
+    end
+
+    # Public: Prefix a given path with the destination directory.
+    #
+    # paths - (optional) path elements to a file or directory within the
+    #         destination directory
+    #
+    # Returns a path which is prefixed with the destination directory.
+    #
+    # Even though the destination is substituted during processing of each language,
+    # we must also cover the case of default_loale_in_subfolder and files excluded
+    # from localization.
+    #
+    # In this case in_dest_dir will be called with localized destination directory and
+    # path to static file e.g. site.in_dest_dir("$SOURCE_DIR/_site/en", "/assets/image.png")
+    # which should proceed to "$SOURCE_DIR/_site/assets/image.png"
+    # 
+    def in_dest_dir(*paths)
+      if lang_neutral_dest.nil?
+        base_dest = dest
+      elsif should_localize? paths.last
+        base_dest = lang_neutral_dest + lang_prefix(@active_lang)
+      else
+        base_dest = lang_neutral_dest
+      end
+      paths.reduce(base_dest) do |base, path|
+        Jekyll.sanitized_path(base, path)
+      end
+    end
+
+    def should_localize?(path)
+      path = path.delete_prefix('/')
+      !@exclude_from_localization.any? do |exclude_prefix|
+        path.start_with?(exclude_prefix)
+      end
+    end
+
+    def destination_for(path)
+      path = path.delete_prefix('/')
+      exclude_from_localization = @exclude_from_localization.any? do |exclude_prefix|
+        path.start_with?(exclude_prefix)
+      end
+      if exclude_from_localization
+        # language neutral files need to be generated only once for the default language
+        if @active_lang == @default_lang
+          @lang_neutral_dest
+        else
+          nil
+        end
+      else
+        @lang_neutral_dest + lang_prefix(@active_lang)
       end
     end
 
@@ -104,19 +156,30 @@ module Jekyll
       lang_vars.each do |v|
         config[v] = @active_lang
       end
+      @file_langs = {}
+      @lang_neutral_dest = old_dest = @dest
+      old_include = @include
+      old_exclude = @exclude
+      @dest += lang_prefix @active_lang
       if @active_lang == @default_lang
-      then process_default_language
+        @include += @exclude_from_localization
       else
-        process_active_language
+        @exclude += @exclude_from_localization
       end
+
+      process_orig
+
+      @dest = old_dest
+      @include = old_include
+      @exclude = old_exclude
     end
 
+    # todo: remove
     def process_default_language
-      @orig_dest = @dest
       if @default_locale_in_subfolder
         @dest = "#{@dest}/#{@active_lang}"
         process_orig
-        @dest = @orig_dest
+        @dest = old_dest
       else
         old_include = @include
         process_orig
@@ -124,11 +187,12 @@ module Jekyll
       end
     end
 
+    # todo: remove
     def process_active_language
       old_dest = @dest
       old_exclude = @exclude
       @file_langs = {}
-      @dest = "#{@dest}/#{@active_lang}"
+      @dest += lang_prefix @active_lang
       @exclude += @exclude_from_localization
       process_orig
       @dest = old_dest

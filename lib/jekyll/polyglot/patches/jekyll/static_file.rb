@@ -7,8 +7,8 @@ module Jekyll
     alias_method :write_orig, :write
     def write(dest)
       return false if exclude_from_localization?
-      Jekyll.logger.debug "Polyglot:", "StaticFile write: #{@site.orig_dest}#{relative_path}"
-      write_orig(@site.orig_dest)
+      Jekyll.logger.debug "Polyglot:", "StaticFile write: #{dest}#{relative_path}"
+      write_orig(dest)
     end
 
     def exclude_from_localization?
