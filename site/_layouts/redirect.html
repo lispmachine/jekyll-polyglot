@@ -1,10 +1,11 @@
 <!-- jekyll-redirect-from will use this template to implement redirects. This modification to the template helps polyglot redirect accounting for languages -->
 {% assign redirection = page.redirect.to | remove_first: site.url %}
-{% if site.active_lang == site.default_lang %}
-{% assign redirectTo =  site.url | append: redirection %}
-{% else %}
-{% assign redirectTo = site.url | append: "/" | append: site.active_lang | append: redirection  %}
-{{ site.active_lang }}/{% endif %}
+{%- if site.active_lang != site.default_lang or site.default_locale_in_subfolder -%}
+  {%- assign lang_dir = "/" | append: site.active_lang -%}
+{%- else -%}
+  {%- assign lang_dir = "" -%}
+{%- endif -%}
+{% assign redirectTo = site.url | append: lang_dir | append: redirection %}
 <!DOCTYPE html>
 <html lang="en-US">
   <meta charset="utf-8">
