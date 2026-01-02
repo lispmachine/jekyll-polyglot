@@ -29,10 +29,6 @@ module Jekyll
       end
     end
 
-    def lang_prefix
-      lang_prefix(@active_lang)
-    end
-
     def lang_prefix(lang)
       if lang == @default_lang && !@default_locale_in_subfolder
         ''
