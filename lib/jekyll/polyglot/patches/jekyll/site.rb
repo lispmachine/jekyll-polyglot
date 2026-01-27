@@ -74,7 +74,8 @@ module Jekyll
       @languages = config.fetch('languages', ['en']).uniq
       @keep_files += localization_directories
       if @default_locale_in_subfolder
-        @keep_files += @exclude_from_localization
+        # Jekyll is picky about trailing slashes in site.keep_files, so we need to remove them
+        @keep_files += @exclude_from_localization.map { |path| path.gsub(/\/$/, '') }
       end
       @active_lang = @default_lang
       @lang_vars = config.fetch('lang_vars', [])
